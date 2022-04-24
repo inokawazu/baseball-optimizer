@@ -3,7 +3,7 @@ using GLPK
 using JuMP
 using CSV
 
-num_lineups = 10
+num_lineups = 150
 num_overlap = 3
 path_hitters = "Hitters.csv"
 path_pitchers = "Pitchers.csv"
