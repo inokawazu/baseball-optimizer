@@ -1,87 +1,86 @@
 using DataFrames
-using GLPKMathProgInterface
-using JuMP
+using MathOptInterface
+using JuMP, GLPK
 using CSV
 
-num_lineups = 150
-num_overlap = 3
-path_hitters = "Desktop/Hitters.csv"
-path_pitchers = "Desktop/Pitchers.csv"
+num_lineups = 25
+num_overlap = 6
+path_hitters = "Hitters.csv"
+path_pitchers = "Pitchers.csv"
 path_to_output = "output.csv"
 
 # This is a function that creates one lineup using the Type 4 formulation from the paper
 function one_lineup_Type_4(hitters, pitchers, lineups, num_overlap, num_hitters, num_pitchers, catcher, first_baseman, second_baseman, third_baseman, shortstop, outfielders, num_teams, hitters_teams, pitchers_opponents)
-    m = Model(solver=GLPKSolverMIP())
-
-
+    m = Model(GLPK.Optimizer)
+    
+    
     # Variable for Hitters in lineup
     @variable(m, hitters_lineup[i=1:num_hitters], Bin)
-
+    
     # Variable for Pitcher in lineup
     @variable(m, pitchers_lineup[i=1:num_pitchers], Bin)
 
-
     # One Pitcher constraint
-    @constraint(m, sum{pitchers_lineup[i], i=1:num_pitchers} == 1)
+    @constraint(m, sum(pitchers_lineup[i] for i=1:num_pitchers) == 1)
     
     # Eight Hitters constraint
-    @constraint(m, sum{hitters_lineup[i], i=1:num_hitters} == 8)
+    @constraint(m, sum(hitters_lineup[i] for i=1:num_hitters) == 8)
     
     # between 1 and 2 catchers + first baseman
-    @constraint(m, sum{(catcher)[i]*hitters_lineup[i], i=1:num_hitters} <= 2)
-    @constraint(m, 1 <= sum{catcher[i]*hitters_lineup[i], i=1:num_hitters})
+    @constraint(m, sum((catcher)[i]*hitters_lineup[i] for i=1:num_hitters) <= 2)
+    @constraint(m, 1 <= sum(catcher[i]*hitters_lineup[i] for i=1:num_hitters))
     
     # between 1 and 2 second basemen
-    @constraint(m, sum{second_baseman[i]*hitters_lineup[i], i=1:num_hitters} <= 2)
-    @constraint(m, 1 <= sum{second_baseman[i]*hitters_lineup[i], i=1:num_hitters})
+    @constraint(m, sum(second_baseman[i]*hitters_lineup[i] for i=1:num_hitters) <= 2)
+    @constraint(m, 1 <= sum(second_baseman[i]*hitters_lineup[i] for i=1:num_hitters))
     
     # between 1 and 2 third basemen
-    @constraint(m, sum{third_baseman[i]*hitters_lineup[i], i=1:num_hitters} <= 2)
-    @constraint(m, 1 <= sum{third_baseman[i]*hitters_lineup[i], i=1:num_hitters})
+    @constraint(m, sum(third_baseman[i]*hitters_lineup[i] for i=1:num_hitters) <= 2)
+    @constraint(m, 1 <= sum(third_baseman[i]*hitters_lineup[i] for i=1:num_hitters))
     
     # between 1 and 2 shortstops
-    @constraint(m, sum{shortstop[i]*hitters_lineup[i], i=1:num_hitters} <= 2)
-    @constraint(m, 1 <= sum{shortstop[i]*hitters_lineup[i], i=1:num_hitters})
+    @constraint(m, sum(shortstop[i]*hitters_lineup[i] for i=1:num_hitters) <= 2)
+    @constraint(m, 1 <= sum(shortstop[i]*hitters_lineup[i] for i=1:num_hitters))
     
     # between 3 and 4 outfielders
-    @constraint(m, 3 <= sum{outfielders[i]*hitters_lineup[i], i=1:num_hitters})
-    @constraint(m, sum{outfielders[i]*hitters_lineup[i], i=1:num_hitters} <= 4)
+    @constraint(m, 3 <= sum(outfielders[i]*hitters_lineup[i] for i=1:num_hitters))
+    @constraint(m, sum(outfielders[i]*hitters_lineup[i] for i=1:num_hitters) <= 4)
 
     
 
     # Financial Constraint
-    @constraint(m, sum{hitters[i,:Salary]*hitters_lineup[i], i=1:num_hitters} + sum{pitchers[i,:Salary]*pitchers_lineup[i], i=1:num_pitchers} <= 35000)
+    @constraint(m, sum(hitters[i,:Salary]*hitters_lineup[i] for i=1:num_hitters) + sum(pitchers[i,:Salary]*pitchers_lineup[i] for i=1:num_pitchers) <= 35000)
 
 
     # exactly x different teams for the 8 hitters constraint
     @variable(m, used_team[i=1:num_teams], Bin)
-    constr = @constraint(m, [i=1:num_teams], used_team[i] <= sum{hitters_teams[t, i]*hitters_lineup[t], t=1:num_hitters})
-    constr = @constraint(m, [i=1:num_teams], sum{hitters_teams[t, i]*hitters_lineup[t], t=1:num_hitters} == 4*used_team[i])
-    @constraint(m, sum{used_team[i], i=1:num_teams} == 2)
-
+    constr = @constraint(m, [i=1:num_teams], used_team[i] <= sum(hitters_teams[t, i]*hitters_lineup[t] for t=1:num_hitters))
+    constr = @constraint(m, [i=1:num_teams], sum(hitters_teams[t, i]*hitters_lineup[t] for t=1:num_hitters) == 4*used_team[i])
+    @constraint(m, sum(used_team[i] for i=1:num_teams) == 2)
+    
 
     # No pitchers going against hitters
-    constr = @constraint(m, [i=1:num_pitchers], 6*pitchers_lineup[i] + sum{pitchers_opponents[k, i]*hitters_lineup[k], k=1:num_hitters}<=6)
+    constr = @constraint(m, [i=1:num_pitchers], 6*pitchers_lineup[i] + sum(pitchers_opponents[k, i]*hitters_lineup[k] for k=1:num_hitters)<=6)
 
     # Overlap Constraint
-    constr = @constraint(m, [i=1:size(lineups)[2]], sum{lineups[j,i]*hitters_lineup[j], j=1:num_hitters} + sum{lineups[num_hitters+j,i]*pitchers_lineup[j], j=1:num_pitchers} <= num_overlap)
-
-
+    constr = @constraint(m, [i=1:size(lineups)[2]], sum(lineups[j,i]*hitters_lineup[j] for j=1:num_hitters) + sum(lineups[num_hitters+j,i]*pitchers_lineup[j] for j=1:num_pitchers) <= num_overlap)
+    
+                                                                                                                                                                                                            
 
     # Objective
-    @objective(m, Max, sum{hitters[i,:FPPG]*hitters_lineup[i], i=1:num_hitters} + sum{pitchers[i,:FPPG]*pitchers_lineup[i], i=1:num_pitchers} )
+    @objective(m, Max, sum(hitters[i,:FPPG]*hitters_lineup[i] for i=1:num_hitters) + sum(pitchers[i,:FPPG]*pitchers_lineup[i] for i=1:num_pitchers) )
     
 
 
     # Solve the integer programming problem
     println("Solving Problem...")
-    @printf("\n")
-    status = solve(m);
+    print("\n")
+    status = optimize!(m);
 
 
     # Puts the output of one lineup into a format that will be used later
     if status==:Optimal
-        hitters_lineup_copy = Array{Int64}(0)
+        hitters_lineup_copy = Array(Int64)(0)
         for i=1:num_hitters
             if getvalue(hitters_lineup[i]) >= 0.9 && getvalue(hitters_lineup[i]) <= 1.1
                 hitters_lineup_copy = vcat(hitters_lineup_copy, fill(1,1))
@@ -126,35 +125,35 @@ function create_lineups(num_lineups, num_overlap, path_hitters, path_pitchers, f
 
 
     # Load information for hitters table
-    hitters = CSV.read(path_hitters)
-
+    hitters = CSV.read(path_hitters, DataFrame)
+    
     # Load information for pitchers table
-    pitchers = CSV.read(path_pitchers)
-
+    pitchers = CSV.read(path_pitchers, DataFrame)
+    
     # Number of hitters
     num_hitters = size(hitters)[1]
-
+    
     # Number of pitchers
     num_pitchers = size(pitchers)[1]
     
     # catchers stores the information on which players are catchers
-    catcher = Array{Int64}(0)
+    catcher = Array{Int}(undef, 0)
     
     # first baseman stores the information on which players are first baseman
-    first_baseman = Array{Int64}(0)
+    first_baseman = Array{Int}(undef, 0)
     
     # second baseman stores the information on which players are second baseman
-    second_baseman = Array{Int64}(0)
+    second_baseman = Array{Int}(undef, 0)
     
     # third baseman stores the information on which players are third baseman
-    third_baseman = Array{Int64}(0)
+    third_baseman = Array{Int}(undef, 0)
     
     # shortstop stores the information on which players are shortsops
-    shortstop = Array{Int64}(0)
+    shortstop = Array{Int}(undef, 0)
     
     # outfielders stores the information on which players are outfielders
-    outfielders = Array{Int64}(0)
-
+    outfielders = Array{Int}(undef, 0)
+    
     
 
     #=
@@ -208,12 +207,12 @@ function create_lineups(num_lineups, num_overlap, path_hitters, path_pitchers, f
     end
 
     catcher = catcher+first_baseman
-
+    
 
 
 
     # Create team indicators from the information in the hitters file
-    teams = unique(hitters[:Team])
+    teams = unique(hitters[!, :Team])
 
     # Total number of teams
     num_teams = size(teams)[1]
@@ -243,8 +242,8 @@ function create_lineups(num_lineups, num_overlap, path_hitters, path_pitchers, f
 
 
     # Create pitcher identifiers so you know who they are playing
-    opponents = pitchers[:Opponent]
-    pitchers_teams = pitchers[:Team]
+    opponents = pitchers[!, :Opponent]
+    pitchers_teams = pitchers[!, :Team]
     pitchers_opponents=[]
     for num = 1:size(teams)[1]
         if opponents[1] == teams[num]
@@ -264,7 +263,7 @@ function create_lineups(num_lineups, num_overlap, path_hitters, path_pitchers, f
 
     # Lineups using formulation as the stacking type
     the_lineup= formulation(hitters, pitchers, hcat(zeros(Int, num_hitters + num_pitchers), zeros(Int, num_hitters + num_pitchers)), num_overlap, num_hitters, num_pitchers, catcher, first_baseman, second_baseman, third_baseman, shortstop, outfielders, num_teams, hitters_teams, pitchers_opponents)
-    the_lineup2 = formulation(hitters, pitchers, hcat(the_lineup, zeros(Int, num_hitters + num_pitchers)), num_overlap, num_hitters, num_pitchers, catcher, first_baseman, second_baseman, third_baseman, shortstop, outfielders, num_teams, hitters_teams, pitchers_opponents)
+    the_lineup2= formulation(hitters, pitchers, hcat(the_lineup, zeros(Int, num_hitters + num_pitchers)), num_overlap, num_hitters, num_pitchers, catcher, first_baseman, second_baseman, third_baseman, shortstop, outfielders, num_teams, hitters_teams, pitchers_opponents)
     tracer = hcat(the_lineup, the_lineup2)
     for i=1:(num_lineups-2)
         try
@@ -274,7 +273,7 @@ function create_lineups(num_lineups, num_overlap, path_hitters, path_pitchers, f
             break
         end
     end
-
+    
 
     # Create the output csv file
     lineup2 = ""
@@ -335,7 +334,6 @@ function create_lineups(num_lineups, num_overlap, path_hitters, path_pitchers, f
         end
         lineup2 = chop(lineup2)
         lineup2 = string(lineup2, """
-
         """)
     end
     outfile = open(path_to_output, "w")
@@ -348,5 +346,3 @@ end
 
 # Running the code
 create_lineups(num_lineups, num_overlap, path_hitters, path_pitchers, formulation, path_to_output)
-
-
