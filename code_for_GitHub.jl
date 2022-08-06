@@ -267,13 +267,16 @@ function create_lineups(num_lineups, num_overlap, path_hitters, path_pitchers, f
 
     # Lineups using formulation as the stacking type
     the_lineup= formulation(hitters, pitchers, hcat(zeros(Int, num_hitters + num_pitchers), zeros(Int, num_hitters + num_pitchers)), num_overlap, num_hitters, num_pitchers, catcher, first_baseman, second_baseman, third_baseman, shortstop, outfielders, num_teams, hitters_teams, pitchers_opponents)
+
     the_lineup2= formulation(hitters, pitchers, hcat(the_lineup, zeros(Int, num_hitters + num_pitchers)), num_overlap, num_hitters, num_pitchers, catcher, first_baseman, second_baseman, third_baseman, shortstop, outfielders, num_teams, hitters_teams, pitchers_opponents)
     tracer = hcat(the_lineup, the_lineup2)
     for i=1:(num_lineups-2)
         try
             thelineup=formulation(hitters, pitchers, tracer, num_overlap, num_hitters, num_pitchers, catcher, first_baseman, second_baseman, third_baseman, shortstop, outfielders, num_teams, hitters_teams, pitchers_opponents)
             tracer = hcat(tracer,thelineup)
-        catch
+        catch e # now breaks if error is encountered
+            @error e.msg
+            @error "breaking at step $i."
             break
         end
     end
