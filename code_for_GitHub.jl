@@ -75,24 +75,28 @@ function one_lineup_Type_4(hitters, pitchers, lineups, num_overlap, num_hitters,
     # Solve the integer programming problem
     println("Solving Problem...")
     print("\n")
-    status = optimize!(m);
-
+    optimize!(m)
+    status = termination_status(m) # optimize! retruns Nothing so termination_status on m must be used
 
     # Puts the output of one lineup into a format that will be used later
-    if status==:Optimal
-        hitters_lineup_copy = Array(Int64)(0)
+    if status==OPTIMAL # OPTIMAL is an enumeriation of JuMP
+        hitters_lineup_copy = Int64[]#Array(Int64)(0)
         for i=1:num_hitters
-            if getvalue(hitters_lineup[i]) >= 0.9 && getvalue(hitters_lineup[i]) <= 1.1
-                hitters_lineup_copy = vcat(hitters_lineup_copy, fill(1,1))
+            if value(hitters_lineup[i]) >= 0.9 && value(hitters_lineup[i]) <= 1.1 # value retrives the value
+                # hitters_lineup_copy = vcat(hitters_lineup_copy, fill(1,1))
+                push!(hitters_lineup_copy, 1) # push 1 end of to hitters_lineup
             else
-                hitters_lineup_copy = vcat(hitters_lineup_copy, fill(0,1))
+                # hitters_lineup_copy = vcat(hitters_lineup_copy, fill(0,1))
+                push!(hitters_lineup_copy, 0) # push 1 end of to hitters_lineup
             end
         end
         for i=1:num_pitchers
-            if getvalue(pitchers_lineup[i]) >= 0.9 && getvalue(pitchers_lineup[i]) <= 1.1
-                hitters_lineup_copy = vcat(hitters_lineup_copy, fill(1,1))
+            if value(pitchers_lineup[i]) >= 0.9 && value(pitchers_lineup[i]) <= 1.1
+                # hitters_lineup_copy = vcat(hitters_lineup_copy, fill(1,1))
+                push!(hitters_lineup_copy, 1) # push 1 end of to hitters_lineup
             else
-                hitters_lineup_copy = vcat(hitters_lineup_copy, fill(0,1))
+                # hitters_lineup_copy = vcat(hitters_lineup_copy, fill(0,1))
+                push!(hitters_lineup_copy, 0) # push 1 end of to hitters_lineup
             end
         end
         return(hitters_lineup_copy)
